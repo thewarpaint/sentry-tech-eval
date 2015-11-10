@@ -11,7 +11,80 @@
       Raven.config('https://6ba6904e0e47437b90db94e380c94960@app.getsentry.com/57994').install();
     </script>
   </head>
-  <body>
+  <body ng-app="TechEvalApp">
+    <script>
+      var a, b;
+
+      angular
+        .module('TechEvalApp', ['ngRaven'])
+        .config(function($provide) {
+          $provide.decorator('$exceptionHandler', ['$log', '$delegate',
+            function($log, $delegate) {
+              return function(exception, cause) {
+                $log.debug('Sentry exception handler.');
+                Raven.captureException(exception);
+                $delegate(exception, cause);
+              };
+            }
+          ]);
+        })
+        .controller('MainController', ['$scope', function($scope) {
+          // Expected: undefined var `users`
+          $scope.users = users.concat(moreUsers);
+        }]);
+
+      if(Raven.isSetup()) {
+        console.log('Raven is up and running!');
+
+        // User tracking
+        Raven.setUserContext({
+          email: 'eduardo@garcia.com',
+          id: '987123'
+        });
+
+        // $.ajaxError configuration
+        $(document).ajaxError(function(event, jqXHR, ajaxSettings, thrownError) {
+          Raven.captureMessage(thrownError || jqXHR.statusText, {
+            extra: {
+              type: ajaxSettings.type,
+              url: ajaxSettings.url,
+              data: ajaxSettings.data,
+              status: jqXHR.status,
+              error: thrownError || jqXHR.statusText,
+              response: jqXHR.responseText && jqXHR.responseText.substring(0, 100)
+            }
+          });
+        });
+
+        // Expected: 404 error
+        $.ajax('https://google.com/non-existent-endpoint/', {
+          success: function (data) {
+            console.log(data);
+          }
+        });
+
+        // Manually capture exception
+        try {
+          // Expected: undefined function `fn`
+          fn();
+        } catch (e) {
+          Raven.captureException(e);
+        }
+
+        a = 1;
+        b = 2;
+
+        // Expected: undefined var `c`
+        d = a + b + c;
+      }
+    </script>
+
     <h1>Sentry Technology Evaluation</h1>
+
+    <div ng-controller="MainController">
+      <ul>
+        <li ng-repeat="user in users">{{ user.name }}</li>
+      </ul>
+    </div>
   </body>
 </html>
